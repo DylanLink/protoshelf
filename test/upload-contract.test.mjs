@@ -11,6 +11,9 @@ test("web and MCP uploads use the signed URL contract", async () => {
 
   assert.doesNotMatch(client, /publishableKey|setRequestHeader\("apikey"/)
   assert.match(mcp, /protoshelf_prepare_upload/)
+  assert.match(mcp, /protoshelf_list_versions/)
+  assert.match(mcp, /protoshelf_get_version_download/)
+  assert.match(mcp, /signedPackageDownload/)
   assert.match(library, /window\.location\.origin/)
   assert.match(library, /\$\{appOrigin\}\/api\/mcp/)
   assert.doesNotMatch(library, /\.vercel\.app\/api\/mcp/)

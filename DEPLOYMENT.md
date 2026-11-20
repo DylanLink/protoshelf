@@ -113,7 +113,7 @@ curl --fail --silent --show-error \
 unset PROTOSHELF_KEY
 ```
 
-The tool list must include `protoshelf_prepare_upload`. That tool creates a short-lived signed Supabase upload URL; the client uploads the ZIP directly and then calls the create/update tool with the returned package reference.
+The tool list must include `protoshelf_prepare_upload`, `protoshelf_list_versions`, and `protoshelf_get_version_download`. Uploads use a short-lived signed Supabase upload URL. Historical downloads use a short-lived signed download URL and never expose the service-role key.
 
 Finally verify in the UI that you can upload a small ZIP, open its preview, download the package, and refresh without losing the record.
 

@@ -50,8 +50,10 @@ Authorization: Bearer <PROTOSHELF_API_KEY>
 
 部署后的 MCP 地址：`https://YOUR_DOMAIN/api/mcp`
 
-使用 API 密钥作为 Bearer Token。MCP 提供列出和读取原型、按永久 Code 更新原型、创建原型、添加历史版本、列出文件夹及移动原型等工具。
+使用 API 密钥作为 Bearer Token。MCP 提供列出和读取原型、按永久 Code 更新原型、创建原型、添加历史版本、列出历史版本、获取指定版本临时下载链接、列出文件夹及移动原型等工具。
 
 更新已有原型前应先查找并确认 `PROTO-XXXXXXXX` Code；代码包迭代应创建新版本，不覆盖历史版本。每个工具都包含这些操作约束，AI 客户端连接后可自动读取。
+
+历史版本下载流程：先调用 `protoshelf_list_versions` 获取版本 ID 或 `v1/v2` 标签，再调用 `protoshelf_get_version_download` 获取默认 15 分钟有效的 ZIP 下载链接。
 
 当前登录用于内部团队：服务端校验账号密码并签发 HttpOnly 签名 Cookie。团队规模扩大后，建议替换为企业 SSO 或 Auth.js。

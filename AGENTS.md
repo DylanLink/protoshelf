@@ -23,6 +23,7 @@ Operational constraints:
 - Persistent application state is stored in the Supabase `public.app_state` table.
 - Prototype ZIP files are stored in the private Supabase Storage bucket `prototype-packages`.
 - The maximum prototype package size is 50 MB for both web and MCP uploads.
+- MCP history retrieval uses `protoshelf_list_versions` followed by `protoshelf_get_version_download`; never expose raw Supabase credentials or replace the signed-download flow with a public bucket.
 - Never commit `.env*`, `.vercel`, API keys, cookies, or the Supabase service-role key.
 - Never expose `SUPABASE_SERVICE_ROLE_KEY` through a `NEXT_PUBLIC_*` variable or client component.
 - Do not copy production data into GitHub or deployment artifacts.

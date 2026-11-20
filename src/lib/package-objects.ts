@@ -25,6 +25,16 @@ export async function signedPackageUpload(path: string) {
   return data
 }
 
+export async function signedPackageDownload(ref: string, expiresInSeconds = 900) {
+  const url = new URL(ref)
+  if (url.protocol === "https:") {
+    return { signedUrl: ref, expiresInSeconds: null }
+  }
+  const { data, error } = await storage().createSignedUrl(pathFrom(ref), expiresInSeconds)
+  if (error) throw error
+  return { signedUrl: data.signedUrl, expiresInSeconds }
+}
+
 export async function putPackage(path: string, body: Uint8Array, contentType = "application/zip") {
   const { error } = await storage().upload(path, body, { contentType })
   if (error) throw error

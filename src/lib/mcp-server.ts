@@ -4,10 +4,11 @@ import { McpServer, createMcpHandler } from "@modelcontextprotocol/server"
 import * as z from "zod/v4"
 
 import { readFolders } from "@/lib/folders-store"
-import { packageRef, signedPackageUpload } from "@/lib/package-objects"
+import { packageRef, signedPackageDownload, signedPackageUpload } from "@/lib/package-objects"
 import { persistPackageUrl } from "@/lib/package-storage"
 import { matchesPrototypeRef, prototypeCodeForId, type Prototype } from "@/lib/prototypes"
 import { readPrototypes, writePrototypes } from "@/lib/prototypes-store"
+import { findPrototypeVersion, paginatePrototypeVersions } from "@/lib/prototype-versions"
 
 function result(data: Record<string, unknown>) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }], structuredContent: data }
@@ -18,7 +19,7 @@ function failure(message: string) {
 }
 
 function createProtoShelfServer() {
-  const server = new McpServer({ name: "protoshelf-mcp-server", version: "1.0.0" })
+  const server = new McpServer({ name: "protoshelf-mcp-server", version: "1.1.0" })
 
   server.registerTool("protoshelf_prepare_upload", {
     title: "准备上传代码包",
@@ -59,6 +60,57 @@ function createProtoShelfServer() {
   }, async ({ code }) => {
     const project = (await readPrototypes()).find((item) => matchesPrototypeRef(item, code))
     return project ? result({ prototype: project }) : failure(`未找到原型 ${code}。请先调用 protoshelf_list_prototypes。`)
+  })
+
+  server.registerTool("protoshelf_list_versions", {
+    title: "列出原型历史版本",
+    description: "使用永久 Code 列出原型的历史版本，按最新到最旧排序。返回版本 ID、v1/v2 标签、创建时间、文件名和当前版本标记，不返回内部存储地址。下载某个版本前先调用此工具取得准确的版本 ID 或标签。",
+    inputSchema: z.object({
+      code: z.string().min(1).describe("原型永久 Code，例如 PROTO-A1B2C3D4"),
+      limit: z.number().int().min(1).max(50).default(20).describe("本次最多返回的版本数，默认 20，最大 50"),
+      offset: z.number().int().min(0).default(0).describe("从第几个版本开始，默认 0"),
+    }),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async ({ code, limit, offset }) => {
+    const project = (await readPrototypes()).find((item) => matchesPrototypeRef(item, code))
+    if (!project) return failure(`未找到原型 ${code}。请先调用 protoshelf_list_prototypes。`)
+    return result({
+      prototype: { id: project.id, code: project.code, title: project.title, activeVersionId: project.activeVersionId },
+      ...paginatePrototypeVersions(project, offset, limit),
+    })
+  })
+
+  server.registerTool("protoshelf_get_version_download", {
+    title: "获取历史版本下载链接",
+    description: "使用永久 Code 和版本 ID（或 v1/v2 标签）获取指定历史版本的临时下载链接。链接默认 15 分钟有效；过期后重新调用即可。此工具只读取版本，不切换当前版本，也不修改原型。",
+    inputSchema: z.object({
+      code: z.string().min(1).describe("原型永久 Code，例如 PROTO-A1B2C3D4"),
+      version: z.string().min(1).describe("版本 ID 或标签，例如 v2。先调用 protoshelf_list_versions 获取准确值"),
+      expiresInSeconds: z.number().int().min(60).max(3600).default(900).describe("下载链接有效秒数，默认 900，范围 60–3600"),
+    }),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  }, async ({ code, version: versionRef, expiresInSeconds }) => {
+    const project = (await readPrototypes()).find((item) => matchesPrototypeRef(item, code))
+    if (!project) return failure(`未找到原型 ${code}。请先调用 protoshelf_list_prototypes。`)
+    const version = findPrototypeVersion(project, versionRef)
+    if (!version) return failure(`原型 ${project.code} 没有版本 ${versionRef}。请先调用 protoshelf_list_versions。`)
+    try {
+      const download = await signedPackageDownload(version.packageUrl, expiresInSeconds)
+      return result({
+        prototype: { id: project.id, code: project.code, title: project.title },
+        version: { id: version.id, label: version.label, created: version.created, filename: version.filename, isActive: version.id === project.activeVersionId },
+        download: {
+          method: "GET",
+          url: download.signedUrl,
+          filename: version.filename,
+          contentType: "application/zip",
+          expiresInSeconds: download.expiresInSeconds,
+          expiresAt: download.expiresInSeconds ? new Date(Date.now() + download.expiresInSeconds * 1000).toISOString() : null,
+        },
+      })
+    } catch (error) {
+      return failure(error instanceof Error ? `无法生成版本下载链接：${error.message}` : "无法生成版本下载链接")
+    }
   })
 
   server.registerTool("protoshelf_create_prototype", {
